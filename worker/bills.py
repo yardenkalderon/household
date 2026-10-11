@@ -54,7 +54,7 @@ def ensure_task(client, household_id: str, provider: dict | None, info: dict) ->
         'autopay': info['autopay'],
         'notes': 'נוצר אוטומטית מחשבון במייל',
     }).execute().data[0]
-    log.info('created task %s for provider %s', task['id'], info['provider'])
+    log.info('created task %s for a new provider', task['id'])
     return task
 
 
@@ -122,12 +122,8 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
 
 def run(client, household_id: str) -> int:
     imap = imaplib.IMAP4_SSL('imap.gmail.com')
-    user, password = env('IMAP_USER').strip(), env('IMAP_PASSWORD')
-    # Google shows app passwords as "abcd efgh ijkl mnop"; accept it pasted either way.
-    password = ''.join(password.split())
-    if len(password) != 16 or not password.isalpha():
-        log.warning('IMAP password looks unusual: %d chars, letters only=%s', len(password), password.isalpha())
-    imap.login(user, password)
+    # Google shows app passwords as "abcd efgh ijkl mnop"; accept them pasted either way.
+    imap.login(env('IMAP_USER').strip(), ''.join(env('IMAP_PASSWORD').split()))
     imap.select('INBOX')
     status, data = imap.search(None, 'UNSEEN')
     ids = data[0].split() if status == 'OK' else []
@@ -142,9 +138,10 @@ def run(client, household_id: str) -> int:
         try:
             info = classify(mail)
         except RuntimeError as e:
-            log.error('skip %s: %s', mail['message_id'], e)
+            log.error('skipped an email: %s', type(e).__name__)
             continue  # stays unread, retried next run
-        log.info('email from %s: %s %s %s', mail['sender'], info['kind'], info['provider'], info['amount'])
+        # The repo is public, so Actions logs are too: never log senders, providers or amounts.
+        log.info('email classified as %s', info['kind'])
         note = apply(client, household_id, mail, info) if info['kind'] in ('bill', 'receipt') else None
         imap.store(msg_id, '+FLAGS', '\\Seen')
         if note:

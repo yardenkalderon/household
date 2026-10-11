@@ -43,7 +43,7 @@ def advance_autopay(client, today: date) -> None:
         .is_('done_at', 'null').lt('next_due', today.isoformat()).execute().data or []
     for task in due:
         client.rpc('complete_task', {'p_task_id': task['id'], 'p_source': 'worker'}).execute()
-        log.info('autopay advanced %s (%s)', task['id'], task['title'])
+        log.info('autopay advanced task %s', task['id'])
 
 
 def run(client, force: bool = False) -> int:
