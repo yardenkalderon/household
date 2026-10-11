@@ -1,0 +1,8 @@
+.vapid.local.json
+.env.local
+*.local
+node_modules
+.DS_Store
+__pycache__/
+.venv/
+web/dist

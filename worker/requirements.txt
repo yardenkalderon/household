@@ -1,0 +1,4 @@
+supabase==2.*
+groq
+pypdf==5.*
+pywebpush==2.*
