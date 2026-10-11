@@ -8,12 +8,13 @@ import { toast } from './ui'
 
 const SECTIONS: [Bucket, string][] = [['late', 'באיחור'], ['week', 'השבוע'], ['later', 'בהמשך'], ['none', 'בלי תאריך']]
 
-function subtitle(t: Task, who: string | undefined): string {
+function subtitle(t: Task, who: string | undefined, bills: Bill[]): string {
   const parts: string[] = []
   if (t.kind === 'consumption') {
     if (t.next_due) parts.push(`משוער ~${shortDate(t.next_due)}`)
   } else {
     if (t.amount != null) parts.push((t.amount_estimated ? '~' : '') + money(t.amount))
+    else if (bills.some((b) => b.task_id === t.id && b.status === 'new')) parts.push('סכום באתר הספק')
     if (t.next_due) parts.push(t.autopay ? `ייגבה ~${shortDate(t.next_due)}` : `${t.amount != null ? 'לתשלום עד' : 'עד'} ${shortDate(t.next_due)}`)
   }
   if (who) parts.push(who)
@@ -123,7 +124,7 @@ export function Home({
                         )}
                       </span>
                       <span className={`block truncate text-xs ${b === 'late' ? 'text-late' : 'text-ink-2'}`}>
-                        {subtitle(t, nameOf(t.assignee_id))}
+                        {subtitle(t, nameOf(t.assignee_id), bills)}
                       </span>
                     </span>
                   </button>

@@ -108,3 +108,12 @@ def test_fix_reversed_amounts():
     assert extract.fix_reversed_amounts('93.398\n08.338 85.60') == '398.93\n338.08 60.85'
     # A normal document (no impossible "XX.YYY" number) is left alone
     assert extract.fix_reversed_amounts('סכום לתשלום 412.30 ש"ח, 1,240.00, 12.50') == 'סכום לתשלום 412.30 ש"ח, 1,240.00, 12.50'
+
+
+def test_invoice_link_is_kept_for_link_only_bills():
+    html = ('<p>החשבונית האינטראקטיבית שלך לתקופה 2026 - 02 הגיעה.</p>'
+            '<a href="https://www.facebook.com/x">f</a>'
+            '<a href="https://bills.example.co.il/view?id=1&amp;t=2"><span>לצפייה בחשבונית</span></a>')
+    mail = extract.parse(make_mail(sender='noreply@meiavivim.co.il', html=html))
+    assert mail['link'] == 'https://bills.example.co.il/view?id=1&t=2'
+    assert extract.parse(make_mail())['link'] is None

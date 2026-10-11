@@ -87,7 +87,7 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
         'kind': info['kind'], 'provider_name': info['provider'], 'category': info['category'], 'amount': info['amount'],
         'due_date': info['due_date'], 'period': info['period'], 'email_message_id': mail['message_id'],
         'email_from': mail['sender'], 'subject': mail['subject'][:300], 'received_at': mail['received_at'],
-        'summary': info['summary'], 'status': 'new' if info['kind'] == 'bill' else 'paid',
+        'summary': info['summary'], 'status': 'new' if info['kind'] == 'bill' else 'paid', 'link': mail.get('link'),
     }).execute().data[0]
 
     name = info['provider'] or task['title']

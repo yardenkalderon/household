@@ -61,6 +61,19 @@ def pdf_text(data: bytes) -> str:
         return ''
 
 
+_LINK = re.compile(r'<a\b[^>]*href=["\'](https://[^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+_LINK_WORDS = re.compile(r'חשבונית|חשבון|לצפייה|לתשלום|תשלום|invoice|bill', re.IGNORECASE)
+
+
+def invoice_link(html_parts: list[str]) -> str | None:
+    """The "view invoice" / "pay" link, for providers that don't put the amount in the email."""
+    for raw in html_parts:
+        for url, label in _LINK.findall(raw):
+            if _LINK_WORDS.search(html_to_text(label)) and len(url) <= 1000:
+                return html.unescape(url)
+    return None
+
+
 def parse(raw_bytes: bytes) -> dict:
     """Returns sender, subject, date, message id and the combined text of body + PDFs."""
     msg: Message = email.message_from_bytes(raw_bytes)
@@ -71,7 +84,7 @@ def parse(raw_bytes: bytes) -> dict:
     except (TypeError, ValueError):
         received = None
 
-    plain, htmls, pdfs = [], [], []
+    plain, htmls, pdfs, raw_htmls = [], [], [], []
     for part in msg.walk():
         if part.is_multipart():
             continue
@@ -83,7 +96,9 @@ def parse(raw_bytes: bytes) -> dict:
         elif ctype == 'text/plain' and not filename:
             plain.append(payload.decode(part.get_content_charset() or 'utf-8', 'replace'))
         elif ctype == 'text/html' and not filename:
-            htmls.append(html_to_text(payload.decode(part.get_content_charset() or 'utf-8', 'replace')))
+            raw_html = payload.decode(part.get_content_charset() or 'utf-8', 'replace')
+            raw_htmls.append(raw_html)
+            htmls.append(html_to_text(raw_html))
     body = '\n'.join(plain) if any(p.strip() for p in plain) else '\n'.join(htmls)
 
     # A manually forwarded email comes "from" one of us; the real sender is inside the body.
@@ -101,6 +116,7 @@ def parse(raw_bytes: bytes) -> dict:
         'received_at': received,
         'text': text[:MAX_CHARS],
         'has_pdf': bool(pdfs),
+        'link': invoice_link(raw_htmls),
     }
 
 

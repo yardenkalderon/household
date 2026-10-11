@@ -42,7 +42,7 @@ function House({ myId }: { myId: string }) {
   const loadTasks = useCallback(async () => {
     const [t, b] = await Promise.all([
       supabase.from('tasks').select('*').is('done_at', null),
-      supabase.from('bills').select('id,task_id,kind,provider_name,amount,due_date,period,subject,summary,received_at,status')
+      supabase.from('bills').select('id,task_id,kind,provider_name,amount,due_date,period,subject,summary,received_at,status,link')
         .order('received_at', { ascending: false }).limit(100),
     ])
     setOffline(Boolean(t.error))

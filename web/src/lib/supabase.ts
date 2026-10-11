@@ -51,4 +51,5 @@ export type Bill = {
   summary: string | null
   received_at: string | null
   status: 'new' | 'paid' | 'ignored'
+  link: string | null
 }

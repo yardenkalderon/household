@@ -97,6 +97,12 @@ export function TaskForm({
             {bill.period && ` · ${bill.period}`}
           </div>
           {bill.summary && <div className="mt-1 opacity-80">{bill.summary}</div>}
+          {bill.link?.startsWith('https://') && (
+            <a href={bill.link} target="_blank" rel="noopener noreferrer"
+              className="mt-2 inline-block rounded-lg bg-card px-3 py-1.5 font-medium text-mail">
+              פתיחת החשבון באתר ↗
+            </a>
+          )}
         </div>
       )}
       <form onSubmit={save} className="space-y-3 pb-4">
