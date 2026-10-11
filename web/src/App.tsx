@@ -100,7 +100,7 @@ function House({ myId }: { myId: string }) {
     )
   }
 
-  const urgent = tasks.filter((t) => ['late', 'week'].includes(bucketOf(t.next_due))).length
+  const urgent = tasks.filter((t) => !t.autopay && ['late', 'week'].includes(bucketOf(t.next_due))).length
   const openItems = items.filter((i) => !i.checked).length
 
   return (
@@ -108,7 +108,8 @@ function House({ myId }: { myId: string }) {
       <main className="pt-safe flex-1 pb-28">
         {offline && <p className="mx-4 mb-3 rounded-lg bg-week-soft px-3 py-2 text-sm text-week">אין חיבור כרגע. מוצגים הנתונים האחרונים.</p>}
         {tab === 'home'
-          ? <Home tasks={tasks} bills={bills} members={members} myId={myId} householdId={householdId} reload={loadTasks} onSettings={() => setSettings(true)} />
+          ? <Home tasks={tasks} bills={bills} members={members} myId={myId} householdId={householdId} reload={loadTasks} onSettings={() => setSettings(true)}
+              onTaskChanged={(u) => setTasks((prev) => (u.done_at ? prev.filter((t) => t.id !== u.id) : prev.map((t) => (t.id === u.id ? u : t))))} />
           : <Shopping items={items} setItems={setItems} members={members} householdId={householdId} />}
       </main>
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 backdrop-blur">

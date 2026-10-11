@@ -37,12 +37,22 @@ def message(task: dict, stage: str, today: date) -> tuple[str, str]:
     return title, body
 
 
+def advance_autopay(client, today: date) -> None:
+    """Standing-order bills pay themselves: once their date passes, move them to the next period."""
+    due = client.table('tasks').select('id,title').eq('autopay', True).eq('kind', 'recurring') \
+        .is_('done_at', 'null').lt('next_due', today.isoformat()).execute().data or []
+    for task in due:
+        client.rpc('complete_task', {'p_task_id': task['id'], 'p_source': 'worker'}).execute()
+        log.info('autopay advanced %s (%s)', task['id'], task['title'])
+
+
 def run(client, force: bool = False) -> int:
     from common import now_il
     if not force and now_il().hour < 9:
         log.info('before 09:00 Israel time, reminders wait')
         return 0
     today = today_il()
+    advance_autopay(client, today)
     tasks = client.table('tasks').select('*').is_('done_at', 'null').not_.is_('next_due', 'null').execute().data or []
     sent = 0
     for task in tasks:

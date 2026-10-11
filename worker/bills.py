@@ -66,6 +66,7 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
         return None
 
     provider = find_provider(client, household_id, mail['sender'], info['provider'])
+    is_new_task = not (provider and provider.get('task_id'))
     task = ensure_task(client, household_id, provider, info)
     if not provider:
         provider = client.table('providers').insert({
@@ -86,6 +87,8 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
 
     name = info['provider'] or task['title']
     if info['kind'] == 'receipt':
+        if is_new_task:
+            return f'התקבלה קבלה מ{name}. פתחתי מטלה "{task["title"]}" למעקב'
         due = task.get('next_due')
         if not task.get('done_at') and (not due or abs((date.fromisoformat(due) - today_il()).days) <= 60):
             client.rpc('complete_task', {
@@ -93,6 +96,10 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
             }).execute()
             return f'התקבלה קבלה מ{name}. סימנתי את "{task["title"]}" כשולם'
         return None
+
+    # A newer bill replaces the previous unpaid one for the same task.
+    client.table('bills').update({'status': 'ignored'}).eq('task_id', task['id']) \
+        .eq('status', 'new').neq('id', bill['id']).execute()
 
     update = {'amount_estimated': False}
     if info['amount'] is not None:

@@ -14,9 +14,8 @@ function subtitle(t: Task, who: string | undefined): string {
     if (t.next_due) parts.push(`משוער ~${shortDate(t.next_due)}`)
   } else {
     if (t.amount != null) parts.push((t.amount_estimated ? '~' : '') + money(t.amount))
-    if (t.next_due) parts.push(`${t.amount != null ? 'לתשלום עד' : 'עד'} ${shortDate(t.next_due)}`)
+    if (t.next_due) parts.push(t.autopay ? `ייגבה ~${shortDate(t.next_due)}` : `${t.amount != null ? 'לתשלום עד' : 'עד'} ${shortDate(t.next_due)}`)
   }
-  if (t.autopay) parts.push('הוראת קבע')
   if (who) parts.push(who)
   const n = t.next_due ? daysUntil(t.next_due) : 0
   const late = t.next_due && n < 0 ? `באיחור של ${-n === 1 ? 'יום' : `${-n} ימים`} · ` : ''
@@ -25,15 +24,15 @@ function subtitle(t: Task, who: string | undefined): string {
 
 function doneLabel(t: Task): string {
   if (t.kind === 'consumption') return 'הזמנתי'
-  if (t.amount != null || t.autopay) return 'שילמתי'
+  if (t.amount != null) return 'שילמתי'
   return 'בוצע'
 }
 
 export function Home({
-  tasks, bills, members, myId, householdId, reload, onSettings,
+  tasks, bills, members, myId, householdId, reload, onSettings, onTaskChanged,
 }: {
   tasks: Task[]; bills: Bill[]; members: Member[]; myId: string; householdId: string
-  reload: () => void; onSettings: () => void
+  reload: () => void; onSettings: () => void; onTaskChanged: (t: Task) => void
 }) {
   const [editing, setEditing] = useState<Task | 'new' | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
@@ -43,7 +42,7 @@ export function Home({
 
   const open = tasks.filter((t) => !t.done_at).sort((a, b) => (a.next_due ?? '9999').localeCompare(b.next_due ?? '9999'))
   const grouped = SECTIONS.map(([b, label]) => [label, open.filter((t) => bucketOf(t.next_due) === b)] as const)
-  const urgent = open.filter((t) => ['late', 'week'].includes(bucketOf(t.next_due))).length
+  const urgent = open.filter((t) => !t.autopay && ['late', 'week'].includes(bucketOf(t.next_due))).length
   const month = todayIL().slice(0, 7)
   const monthTotal = open
     .filter((t) => t.amount != null && !t.autopay && t.next_due?.startsWith(month))
@@ -55,6 +54,7 @@ export function Home({
     setBusyId(null)
     if (error) return toast('לא הצלחנו לעדכן. נסו שוב.')
     const updated = data as Task
+    onTaskChanged(updated)
     if (updated.done_at) toast('סומן כבוצע')
     else if (t.kind === 'consumption') toast(`נרשם. הזמנה הבאה בערך ב-${shortDate(updated.next_due!)}`)
     else toast(`${t.amount != null ? 'שולם' : 'בוצע'}. הבא: ${shortDate(updated.next_due!)}`)
@@ -127,6 +127,9 @@ export function Home({
                       </span>
                     </span>
                   </button>
+                  {t.autopay ? (
+                    <span className="shrink-0 rounded-lg bg-soft px-2.5 py-1.5 text-xs text-ink-2">הוראת קבע</span>
+                  ) : (
                   <button
                     onClick={() => complete(t)}
                     disabled={busyId === t.id}
@@ -134,6 +137,7 @@ export function Home({
                   >
                     {busyId === t.id ? '…' : doneLabel(t)}
                   </button>
+                  )}
                 </li>
               )
             })}

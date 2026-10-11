@@ -20,10 +20,13 @@ export function Shopping({
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const input = useRef<HTMLInputElement>(null)
+  // Items just checked stay in place briefly, so the next tap doesn't land on a row that slid up.
+  const [settling, setSettling] = useState<number[]>([])
   const nameOf = (id: string | null) => members.find((m) => m.user_id === id)?.display_name ?? ''
 
-  const open = items.filter((i) => !i.checked).sort((a, b) => b.created_at.localeCompare(a.created_at))
-  const done = items.filter((i) => i.checked)
+  const open = items.filter((i) => !i.checked || settling.includes(i.id)).sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const done = items.filter((i) => i.checked && !settling.includes(i.id))
+  const checkedCount = items.filter((i) => i.checked).length
 
   async function add(e: FormEvent) {
     e.preventDefault()
@@ -42,6 +45,10 @@ export function Shopping({
   async function toggle(item: ShoppingItem) {
     const checked = !item.checked
     setItems((prev) => prev.map((p) => (p.id === item.id ? { ...p, checked } : p)))
+    if (checked) {
+      setSettling((prev) => [...prev, item.id])
+      window.setTimeout(() => setSettling((prev) => prev.filter((id) => id !== item.id)), 1500)
+    }
     const { error } = await supabase
       .from('shopping_items')
       .update({ checked, checked_at: checked ? new Date().toISOString() : null })
@@ -53,7 +60,7 @@ export function Shopping({
   }
 
   async function clearDone() {
-    const ids = done.map((d) => d.id)
+    const ids = items.filter((i) => i.checked).map((d) => d.id)
     setItems((prev) => prev.filter((p) => !ids.includes(p.id)))
     const { error } = await supabase.from('shopping_items').delete().in('id', ids)
     if (error) return toast('הניקוי נכשל')
@@ -78,7 +85,7 @@ export function Shopping({
   return (
     <div className="px-4">
       <h1 className="text-xl font-medium">רשימת קניות</h1>
-      <p className="text-sm text-ink-2">{open.length} פריטים · מתעדכן אצל שניכם</p>
+      <p className="text-sm text-ink-2">{items.length - checkedCount} פריטים · מתעדכן אצל שניכם</p>
 
       <form onSubmit={add} className="mt-4 flex gap-2">
         <input
@@ -103,9 +110,9 @@ export function Shopping({
           {done.map(row)}
         </ul>
       )}
-      {done.length > 0 && (
+      {checkedCount > 0 && (
         <button onClick={clearDone} className="mt-3 w-full rounded-xl border border-line bg-card py-2.5 text-sm active:scale-[0.98]">
-          ניקוי {done.length} מסומנים
+          ניקוי {checkedCount} מסומנים
         </button>
       )}
     </div>

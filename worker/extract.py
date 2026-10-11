@@ -84,7 +84,7 @@ def parse(raw_bytes: bytes) -> dict:
 
 SYSTEM_PROMPT = """You read Israeli household emails (Hebrew or English) and extract billing data.
 Return ONLY a JSON object with these keys:
-- "kind": "bill" (a request to pay / a new invoice), "receipt" (confirmation that a payment was made), or "other" (anything else: ads, newsletters, orders, personal mail)
+- "kind": "bill" (a new invoice or a request to pay, INCLUDING invoices that are charged automatically by standing order or credit card), "receipt" (ONLY an explicit confirmation of a payment you made, e.g. "קבלה", "תודה על התשלום", "התשלום התקבל"), or "other" (anything else: ads, newsletters, food or shopping orders, personal mail)
 - "provider": short Hebrew provider name, e.g. "חברת החשמל", "מי אביבים", "פרטנר", "בזק", "הוט", "עיריית תל אביב", "פזגז". null if unknown
 - "category": one of "electricity", "water", "internet", "phone", "tv", "arnona", "gas", "insurance", "vaad", "other"
 - "amount": total amount to pay in ILS as a number, or null if it is not written anywhere in the text
