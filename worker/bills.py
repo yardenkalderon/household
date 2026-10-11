@@ -122,7 +122,12 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
 
 def run(client, household_id: str) -> int:
     imap = imaplib.IMAP4_SSL('imap.gmail.com')
-    imap.login(env('IMAP_USER'), env('IMAP_PASSWORD'))
+    user, password = env('IMAP_USER').strip(), env('IMAP_PASSWORD')
+    # Google shows app passwords as "abcd efgh ijkl mnop"; accept it pasted either way.
+    password = ''.join(password.split())
+    if len(password) != 16 or not password.isalpha():
+        log.warning('IMAP password looks unusual: %d chars, letters only=%s', len(password), password.isalpha())
+    imap.login(user, password)
     imap.select('INBOX')
     status, data = imap.search(None, 'UNSEEN')
     ids = data[0].split() if status == 'OK' else []
