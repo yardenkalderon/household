@@ -62,15 +62,19 @@ def pdf_text(data: bytes) -> str:
 
 
 _LINK = re.compile(r'<a\b[^>]*href=["\'](https://[^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
-_LINK_WORDS = re.compile(r'חשבונית|חשבון|לצפייה|לתשלום|תשלום|invoice|bill', re.IGNORECASE)
+# Best label first; "view this email in a browser" links are never the invoice.
+_LINK_RANKS = [re.compile(p, re.IGNORECASE) for p in (r'חשבונית|invoice', r'תשלום|לשלם|pay', r'חשבון|bill')]
+_NOT_INVOICE = re.compile(r'דפדפן|browser|גרסה|גרסת|web ?version|הסרה|unsubscribe', re.IGNORECASE)
 
 
 def invoice_link(html_parts: list[str]) -> str | None:
     """The "view invoice" / "pay" link, for providers that don't put the amount in the email."""
-    for raw in html_parts:
-        for url, label in _LINK.findall(raw):
-            if _LINK_WORDS.search(html_to_text(label)) and len(url) <= 1000:
-                return html.unescape(url)
+    links = [(html.unescape(url), html_to_text(label)) for raw in html_parts for url, label in _LINK.findall(raw)]
+    links = [(u, l) for u, l in links if len(u) <= 1000 and not _NOT_INVOICE.search(l) and 'webversion' not in u]
+    for rank in _LINK_RANKS:
+        for url, label in links:
+            if rank.search(label):
+                return url
     return None
 
 

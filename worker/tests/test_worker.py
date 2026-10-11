@@ -113,6 +113,8 @@ def test_fix_reversed_amounts():
 def test_invoice_link_is_kept_for_link_only_bills():
     html = ('<p>החשבונית האינטראקטיבית שלך לתקופה 2026 - 02 הגיעה.</p>'
             '<a href="https://www.facebook.com/x">f</a>'
+            '<a href="https://webversion.net/abc">לצפייה בגרסת דפדפן</a>'
+            '<a href="https://pay.example.co.il/">לתשלום מהיר</a>'
             '<a href="https://bills.example.co.il/view?id=1&amp;t=2"><span>לצפייה בחשבונית</span></a>')
     mail = extract.parse(make_mail(sender='noreply@meiavivim.co.il', html=html))
     assert mail['link'] == 'https://bills.example.co.il/view?id=1&t=2'
