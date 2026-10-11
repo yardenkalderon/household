@@ -11,8 +11,10 @@ def _domain(sender: str) -> str:
     return sender.split('@')[-1] if '@' in sender else sender
 
 
-def find_provider(client, household_id: str, sender: str, provider_name: str | None) -> dict | None:
+def find_provider(client, household_id: str, sender: str, provider_name: str | None, category: str) -> dict | None:
+    """Matches on sender AND service: Partner sends both internet and electricity bills from one address."""
     providers = client.table('providers').select('*').eq('household_id', household_id).execute().data or []
+    providers = [p for p in providers if p.get('category') in (None, category)]
     domain = _domain(sender)
     for p in providers:
         if any(pat and (pat == sender or pat == domain or domain.endswith('.' + pat)) for pat in p['sender_patterns']):
@@ -40,7 +42,7 @@ def ensure_task(client, household_id: str, provider: dict | None, info: dict) ->
             return rows[0]
     title, months = CATEGORY_TITLES[info['category']]
     title = title or info['provider'] or 'חשבון'
-    if info['provider'] and info['category'] in ('internet', 'phone', 'tv', 'other', 'insurance'):
+    if info['provider'] and info['category'] != 'other':
         title = f"{title} ({info['provider']})" if title != info['provider'] else title
     task = client.table('tasks').insert({
         'household_id': household_id,
@@ -65,7 +67,7 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
     if exists:
         return None
 
-    provider = find_provider(client, household_id, mail['sender'], info['provider'])
+    provider = find_provider(client, household_id, mail['sender'], info['provider'], info['category'])
     if provider and provider.get('autopay'):
         info = {**info, 'autopay': True}  # once marked as standing order, every bill from it is
     is_new_task = not (provider and provider.get('task_id'))
@@ -77,11 +79,12 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
             'sender_patterns': [_domain(mail['sender'])],
             'task_id': task['id'],
             'autopay': info['autopay'],
+            'category': info['category'],
         }).execute().data[0]
 
     bill = client.table('bills').insert({
         'household_id': household_id, 'provider_id': provider['id'], 'task_id': task['id'],
-        'kind': info['kind'], 'provider_name': info['provider'], 'amount': info['amount'],
+        'kind': info['kind'], 'provider_name': info['provider'], 'category': info['category'], 'amount': info['amount'],
         'due_date': info['due_date'], 'period': info['period'], 'email_message_id': mail['message_id'],
         'email_from': mail['sender'], 'subject': mail['subject'][:300], 'received_at': mail['received_at'],
         'summary': info['summary'], 'status': 'new' if info['kind'] == 'bill' else 'paid',

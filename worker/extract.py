@@ -97,7 +97,7 @@ SYSTEM_PROMPT = """You read Israeli household emails (Hebrew or English) and ext
 Return ONLY a JSON object with these keys:
 - "kind": "bill" (a new invoice or a request to pay, INCLUDING invoices that are charged automatically by standing order or credit card), "receipt" (ONLY an explicit confirmation of a payment you made, e.g. "קבלה", "תודה על התשלום", "התשלום התקבל"), or "other" (anything else: ads, newsletters, food or shopping orders, personal mail)
 - "provider": short Hebrew provider name, e.g. "חברת החשמל", "מי אביבים", "פרטנר", "בזק", "הוט", "עיריית תל אביב", "פזגז". null if unknown
-- "category": one of "electricity", "water", "internet", "phone", "tv", "arnona", "gas", "insurance", "vaad", "other"
+- "category": one of "electricity", "water", "internet", "phone", "tv", "arnona", "gas", "insurance", "vaad", "other". Decide from the content, not the sender: Partner, Cellcom, Bezeq and others also sell electricity (kWh, קוט"ש, צריכת חשמל, מונה => "electricity")
 - "amount": total amount to pay in ILS as a number, or null if it is not written anywhere in the text
 - "due_date": last date to pay as "YYYY-MM-DD", or null if not written
 - "period": billing period in short Hebrew, e.g. "ספטמבר-אוקטובר 2026", or null
