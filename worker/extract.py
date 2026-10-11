@@ -34,9 +34,19 @@ def fix_glyph_names(text: str) -> str:
     if '/uni05' not in text:
         return text
     text = re.sub(r'/uni([0-9A-Fa-f]{4})', lambda m: chr(int(m.group(1), 16)), text)
-    text = re.sub(r'[\u0590-\u05FF"\']{2,}', lambda m: m.group(0)[::-1], text)
-    # Amounts come out with their parts swapped: 105.89 is extracted as "89.105".
-    return re.sub(r'(?<![\d.])(\d{2})\.(\d{1,3}(?:,\d{3})*)(?![\d.])', lambda m: f'{m.group(2)}.{m.group(1)}', text)
+    return re.sub(r'[\u0590-\u05FF"\']{2,}', lambda m: m.group(0)[::-1], text)
+
+
+_REVERSED_AMOUNT = re.compile(r'(?<![\d.,])(\d{2})\.(\d{1,3}(?:,\d{3})*)(?![\d.,])')
+
+
+def fix_reversed_amounts(text: str) -> str:
+    """Partner's PDFs store numbers in visual order: 398.93 is extracted as "93.398".
+    A shekel amount never has 3 digits after the point, so one such number marks the whole
+    document as reversed, and every "XX.YYY" in it is swapped back."""
+    if not re.search(r'(?<![\d.,])\d{2}\.\d{3}(?![\d.,])', text):
+        return text
+    return _REVERSED_AMOUNT.sub(lambda m: f'{m.group(2)}.{m.group(1)}', text)
 
 
 def pdf_text(data: bytes) -> str:
@@ -44,7 +54,8 @@ def pdf_text(data: bytes) -> str:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted and not reader.decrypt(''):
             return '[PDF מוגן בסיסמה]'
-        return fix_glyph_names('\n'.join(page.extract_text() or '' for page in reader.pages[:4])).strip()
+        text = '\n'.join(page.extract_text() or '' for page in reader.pages[:4])
+        return fix_reversed_amounts(fix_glyph_names(text)).strip()
     except Exception as e:  # broken or unusual PDFs should not stop the run
         log.warning('pdf parse failed: %s', e)
         return ''

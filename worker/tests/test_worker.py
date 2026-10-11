@@ -100,5 +100,11 @@ def test_icons():
 def test_fix_glyph_names_decodes_reversed_hebrew():
     raw = '/uni05DA/uni05D9/uni05E8/uni05D0/uni05EA 25/09/26'
     assert extract.fix_glyph_names(raw) == 'תאריך 25/09/26'
-    assert extract.fix_glyph_names('plain text 89.105') == 'plain text 89.105'  # untouched without glyph names
-    assert extract.fix_glyph_names('/uni05DA/uni05D9 89.105 74.89 1,240.00') .endswith('105.89 89.74 1,240.00')
+
+
+def test_fix_reversed_amounts():
+    # Partner internet and electricity invoices, as pypdf extracts them
+    assert extract.fix_reversed_amounts('סה"כ 89.105 לפני מע"מ 74.89') == 'סה"כ 105.89 לפני מע"מ 89.74'
+    assert extract.fix_reversed_amounts('93.398\n08.338 85.60') == '398.93\n338.08 60.85'
+    # A normal document (no impossible "XX.YYY" number) is left alone
+    assert extract.fix_reversed_amounts('סכום לתשלום 412.30 ש"ח, 1,240.00, 12.50') == 'סכום לתשלום 412.30 ש"ח, 1,240.00, 12.50'
