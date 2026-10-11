@@ -34,7 +34,9 @@ def fix_glyph_names(text: str) -> str:
     if '/uni05' not in text:
         return text
     text = re.sub(r'/uni([0-9A-Fa-f]{4})', lambda m: chr(int(m.group(1), 16)), text)
-    return re.sub(r'[\u0590-\u05FF"\']{2,}', lambda m: m.group(0)[::-1], text)
+    text = re.sub(r'[\u0590-\u05FF"\']{2,}', lambda m: m.group(0)[::-1], text)
+    # Amounts come out with their parts swapped: 105.89 is extracted as "89.105".
+    return re.sub(r'(?<![\d.])(\d{2})\.(\d{1,3}(?:,\d{3})*)(?![\d.])', lambda m: f'{m.group(2)}.{m.group(1)}', text)
 
 
 def pdf_text(data: bytes) -> str:

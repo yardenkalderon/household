@@ -100,4 +100,5 @@ def test_icons():
 def test_fix_glyph_names_decodes_reversed_hebrew():
     raw = '/uni05DA/uni05D9/uni05E8/uni05D0/uni05EA 25/09/26'
     assert extract.fix_glyph_names(raw) == 'תאריך 25/09/26'
-    assert extract.fix_glyph_names('plain text') == 'plain text'
+    assert extract.fix_glyph_names('plain text 89.105') == 'plain text 89.105'  # untouched without glyph names
+    assert extract.fix_glyph_names('/uni05DA/uni05D9 89.105 74.89 1,240.00') .endswith('105.89 89.74 1,240.00')
