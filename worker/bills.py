@@ -88,6 +88,15 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
     }).execute().data[0]
 
     name = info['provider'] or task['title']
+
+    # An old bill (forwarded late, or an archive) is kept as history and never overwrites a newer one.
+    newer = client.table('bills').select('id').eq('task_id', task['id']).neq('id', bill['id']) \
+        .gt('due_date', info['due_date'] or '0001-01-01').limit(1).execute().data
+    if info['due_date'] and (newer or (date.fromisoformat(info['due_date']) - today_il()).days < -45):
+        client.table('bills').update({'status': 'paid'}).eq('id', bill['id']).execute()
+        log.info('old bill stored as history')
+        return None
+
     if info['kind'] == 'receipt':
         if is_new_task:
             return f'התקבלה קבלה מ{name}. פתחתי מטלה "{task["title"]}" למעקב'

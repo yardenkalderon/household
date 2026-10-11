@@ -42,7 +42,10 @@ def advance_autopay(client, today: date) -> None:
     due = client.table('tasks').select('id,title').eq('autopay', True).eq('kind', 'recurring') \
         .is_('done_at', 'null').lt('next_due', today.isoformat()).execute().data or []
     for task in due:
-        client.rpc('complete_task', {'p_task_id': task['id'], 'p_source': 'worker'}).execute()
+        for _ in range(24):  # catch up period by period until the next charge is in the future
+            t = client.rpc('complete_task', {'p_task_id': task['id'], 'p_source': 'worker'}).execute().data
+            if not t or not t.get('next_due') or t['next_due'] >= today.isoformat():
+                break
         log.info('autopay advanced task %s', task['id'])
 
 
