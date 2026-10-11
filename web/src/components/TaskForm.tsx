@@ -30,7 +30,8 @@ export function TaskForm({
 }) {
   const [title, setTitle] = useState(task?.title ?? '')
   const [repeat, setRepeat] = useState<Repeat>(task ? repeatOf(task) : 'once')
-  const [due, setDue] = useState(task?.next_due ?? addDays(todayIL(), 7))
+  // A new task suggests next week; an existing task without a date keeps having none.
+  const [due, setDue] = useState(task ? (task.next_due ?? '') : addDays(todayIL(), 7))
   const [assignee, setAssignee] = useState(task?.assignee_id ?? myId)
   const [amount, setAmount] = useState(task?.amount != null ? String(task.amount) : '')
   const [gasDays, setGasDays] = useState(String(task?.interval_days ?? 45))
@@ -43,7 +44,7 @@ export function TaskForm({
   async function save(e: FormEvent) {
     e.preventDefault()
     if (!title.trim()) return setError('כתבו שם למטלה')
-    if (!due) return setError('בחרו תאריך')
+    if (!due && !task) return setError('בחרו תאריך')
     const amt = amount.trim() ? Number(amount.replace(/[,₪\s]/g, '')) : null
     if (amt != null && (!Number.isFinite(amt) || amt < 0)) return setError('הסכום צריך להיות מספר')
     const days = Number(gasDays)
@@ -57,8 +58,8 @@ export function TaskForm({
       kind,
       interval_months: kind === 'recurring' ? Number(repeat.slice(1)) : null,
       interval_days: kind === 'consumption' ? days : null,
-      anchor_day: kind === 'recurring' ? Number(due.slice(8, 10)) : null,
-      next_due: due,
+      anchor_day: kind === 'recurring' && due ? Number(due.slice(8, 10)) : null,
+      next_due: due || null,
       assignee_id: assignee || null,
       amount: amt,
       amount_estimated: task && amt === task.amount ? task.amount_estimated : false,
