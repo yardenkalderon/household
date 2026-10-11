@@ -28,12 +28,21 @@ def html_to_text(raw: str) -> str:
     return re.sub(r'[ \t\r\f\v]+', ' ', re.sub(r'\n\s*\n+', '\n', raw)).strip()
 
 
+def fix_glyph_names(text: str) -> str:
+    """Some Israeli invoices (Partner) embed fonts without a Unicode map: pypdf then returns
+    glyph names like /uni05EA and Hebrew in visual (reversed) order. Decode both."""
+    if '/uni05' not in text:
+        return text
+    text = re.sub(r'/uni([0-9A-Fa-f]{4})', lambda m: chr(int(m.group(1), 16)), text)
+    return re.sub(r'[\u0590-\u05FF"\']{2,}', lambda m: m.group(0)[::-1], text)
+
+
 def pdf_text(data: bytes) -> str:
     try:
         reader = PdfReader(io.BytesIO(data))
         if reader.is_encrypted and not reader.decrypt(''):
             return '[PDF מוגן בסיסמה]'
-        return '\n'.join(page.extract_text() or '' for page in reader.pages[:4]).strip()
+        return fix_glyph_names('\n'.join(page.extract_text() or '' for page in reader.pages[:4])).strip()
     except Exception as e:  # broken or unusual PDFs should not stop the run
         log.warning('pdf parse failed: %s', e)
         return ''

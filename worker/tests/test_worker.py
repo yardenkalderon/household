@@ -95,3 +95,9 @@ def test_icons():
     assert icon_for('חשבון חשמל') == 'bolt'
     assert icon_for('אינטרנט (HOT)') == 'wifi'
     assert icon_for('משהו אחר') == 'checklist'
+
+
+def test_fix_glyph_names_decodes_reversed_hebrew():
+    raw = '/uni05DA/uni05D9/uni05E8/uni05D0/uni05EA 25/09/26'
+    assert extract.fix_glyph_names(raw) == 'תאריך 25/09/26'
+    assert extract.fix_glyph_names('plain text') == 'plain text'

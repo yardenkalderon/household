@@ -66,6 +66,8 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
         return None
 
     provider = find_provider(client, household_id, mail['sender'], info['provider'])
+    if provider and provider.get('autopay'):
+        info = {**info, 'autopay': True}  # once marked as standing order, every bill from it is
     is_new_task = not (provider and provider.get('task_id'))
     task = ensure_task(client, household_id, provider, info)
     if not provider:
