@@ -94,6 +94,21 @@ _NOT_INVOICE = re.compile(r'דפדפן|browser|גרסה|גרסת|web ?version|ה
 _TEXT_LINK = re.compile(r'([^\n<>]{0,60}?)\s*<?(https?://[^\s<>"]+)>?')
 
 
+def all_links(html_parts: list[str], plain_parts: list[str] = ()) -> list[tuple[str, str]]:
+    """Every (url, label) in the email, for diagnosing a missed invoice link."""
+    links: list[tuple[str, str]] = []
+    for raw in html_parts:
+        parser = _Anchors()
+        try:
+            parser.feed(raw)
+        except Exception:
+            pass
+        links += parser.links
+    for text in plain_parts:
+        links += [(url, label) for label, url in _TEXT_LINK.findall(text)]
+    return links[:40]
+
+
 def invoice_link(html_parts: list[str], plain_parts: list[str] = ()) -> str | None:
     """The "view invoice" / "pay" link, for providers that don't put the amount in the email."""
     links: list[tuple[str, str]] = []
@@ -159,6 +174,7 @@ def parse(raw_bytes: bytes) -> dict:
         'text': text[:MAX_CHARS],
         'has_pdf': bool(pdfs),
         'link': invoice_link(raw_htmls, plain),
+        'links': all_links(raw_htmls, plain),
     }
 
 

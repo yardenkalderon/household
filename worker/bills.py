@@ -104,6 +104,8 @@ def _apply(client, household_id: str, mail: dict, info: dict) -> tuple[str | Non
         'due_date': info['due_date'], 'period': info['period'], 'email_message_id': mail['message_id'],
         'email_from': mail['sender'], 'subject': mail['subject'][:300], 'received_at': mail['received_at'],
         'summary': info['summary'], 'status': 'new' if info['kind'] == 'bill' else 'paid', 'link': mail.get('link'),
+        # No link recognised: keep what was there (private DB) so the matcher can be fixed.
+        'link_candidates': None if mail.get('link') else [{'label': l[:80], 'url': u[:300]} for u, l in mail.get('links', [])],
     }).execute().data[0]
 
     name = info['provider'] or task['title']
