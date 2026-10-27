@@ -56,9 +56,20 @@ export function Home({
     if (error) return toast('לא הצלחנו לעדכן. נסו שוב.')
     const updated = data as Task
     onTaskChanged(updated)
-    if (updated.done_at) toast('סומן כבוצע')
-    else if (t.kind === 'consumption') toast(`נרשם. הזמנה הבאה בערך ב-${shortDate(updated.next_due!)}`)
-    else toast(`${t.amount != null ? 'שולם' : 'בוצע'}. הבא: ${shortDate(updated.next_due!)}`)
+    const undo = {
+      label: 'ביטול',
+      run: async () => {
+        const { data: restored, error } = await supabase.rpc('undo_complete', { p_task_id: t.id })
+        if (error) return toast('הביטול נכשל')
+        onTaskChanged(restored as Task)
+        toast('בוטל')
+        reload()
+      },
+    }
+    if (updated.done_at) toast('סומן כבוצע', undo)
+    else if (t.kind === 'consumption') toast(`נרשם. הזמנה הבאה בערך ב-${shortDate(updated.next_due!)}`, undo)
+    else toast(`${t.amount != null || bills.some((b) => b.task_id === t.id) ? 'שולם' : 'בוצע'}` +
+      (updated.next_due ? `. הבא: ${shortDate(updated.next_due)}` : ''), undo)
     reload()
   }
 

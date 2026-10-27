@@ -119,3 +119,13 @@ def test_invoice_link_is_kept_for_link_only_bills():
     mail = extract.parse(make_mail(sender='noreply@meiavivim.co.il', html=html))
     assert mail['link'] == 'https://bills.example.co.il/view?id=1&t=2'
     assert extract.parse(make_mail())['link'] is None
+
+
+def test_invoice_link_handles_http_unquoted_and_image_buttons():
+    html = ('<a href=http://click.meiavivim.co.il/x?id=7>לצפייה בחשבונית</a>'
+            '<a href="https://webversion.net/abc">לצפייה בגרסת דפדפן</a>')
+    assert extract.invoice_link([html]) == 'http://click.meiavivim.co.il/x?id=7'
+    img = '<a href="https://pay.example.co.il/q"><img src="b.png" alt="לתשלום מהיר"></a>'
+    assert extract.invoice_link([img]) == 'https://pay.example.co.il/q'
+    assert extract.invoice_link([], ['לצפייה בחשבונית: <https://bills.example.co.il/1>']) == 'https://bills.example.co.il/1'
+    assert extract.invoice_link(['<a href="https://facebook.com/x">פייסבוק</a>']) is None

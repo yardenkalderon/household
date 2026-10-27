@@ -1,6 +1,6 @@
 import { IconHome, IconShoppingCart } from '@tabler/icons-react'
 import type { Session } from '@supabase/supabase-js'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Home } from './components/Home'
 import { Login } from './components/Login'
 import { Settings } from './components/Settings'
@@ -39,12 +39,16 @@ function House({ myId }: { myId: string }) {
 
   const householdId = members?.find((m) => m.user_id === myId)?.household_id
 
+  // Only the latest refresh may write: an older one finishing late would show stale data (e.g. right after undo).
+  const loadSeq = useRef(0)
   const loadTasks = useCallback(async () => {
+    const seq = ++loadSeq.current
     const [t, b] = await Promise.all([
       supabase.from('tasks').select('*').is('done_at', null),
       supabase.from('bills').select('id,task_id,kind,provider_name,amount,due_date,period,subject,summary,received_at,status,link')
         .order('received_at', { ascending: false }).limit(100),
     ])
+    if (seq !== loadSeq.current) return
     setOffline(Boolean(t.error))
     if (!t.error) setTasks(t.data as Task[])
     if (!b.error) setBills(b.data as Bill[])
@@ -109,7 +113,10 @@ function House({ myId }: { myId: string }) {
         {offline && <p className="mx-4 mb-3 rounded-lg bg-week-soft px-3 py-2 text-sm text-week">אין חיבור כרגע. מוצגים הנתונים האחרונים.</p>}
         {tab === 'home'
           ? <Home tasks={tasks} bills={bills} members={members} myId={myId} householdId={householdId} reload={loadTasks} onSettings={() => setSettings(true)}
-              onTaskChanged={(u) => setTasks((prev) => (u.done_at ? prev.filter((t) => t.id !== u.id) : prev.map((t) => (t.id === u.id ? u : t))))} />
+              onTaskChanged={(u) => setTasks((prev) => {
+                const rest = prev.filter((t) => t.id !== u.id)
+                return u.done_at ? rest : [...rest, u]  // undo can bring a finished task back
+              })} />
           : <Shopping items={items} setItems={setItems} members={members} householdId={householdId} />}
       </main>
       <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-card/95 backdrop-blur">

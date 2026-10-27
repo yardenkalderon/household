@@ -2,6 +2,7 @@
 import email
 import hashlib
 import html
+from html.parser import HTMLParser
 import io
 import json
 import re
@@ -61,16 +62,53 @@ def pdf_text(data: bytes) -> str:
         return ''
 
 
-_LINK = re.compile(r'<a\b[^>]*href=["\'](https://[^"\']+)["\'][^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
+class _Anchors(HTMLParser):
+    """Collects every <a href> with the text people see on it, including image buttons (alt/title)."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.links: list[tuple[str, str]] = []
+        self._href: str | None = None
+        self._label: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        a = dict(attrs)
+        if tag == 'a':
+            self._href, self._label = (a.get('href') or '').strip(), [a.get('title') or '', a.get('aria-label') or '']
+        elif tag == 'img' and self._href is not None:
+            self._label.append(a.get('alt') or a.get('title') or '')
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._label.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == 'a' and self._href is not None:
+            self.links.append((self._href, ' '.join(' '.join(self._label).split())))
+            self._href = None
+
+
 # Best label first; "view this email in a browser" links are never the invoice.
-_LINK_RANKS = [re.compile(p, re.IGNORECASE) for p in (r'חשבונית|invoice', r'תשלום|לשלם|pay', r'חשבון|bill')]
-_NOT_INVOICE = re.compile(r'דפדפן|browser|גרסה|גרסת|web ?version|הסרה|unsubscribe', re.IGNORECASE)
+_LINK_RANKS = [re.compile(p, re.IGNORECASE) for p in (r'חשבונית|invoice', r'תשלום|לשלם|pay', r'חשבון|bill|לצפייה|צפייה')]
+_NOT_INVOICE = re.compile(r'דפדפן|browser|גרסה|גרסת|web ?version|הסרה|unsubscribe|פייסבוק|facebook|instagram|youtube|twitter|linkedin', re.IGNORECASE)
+_TEXT_LINK = re.compile(r'([^\n<>]{0,60}?)\s*<?(https?://[^\s<>"]+)>?')
 
 
-def invoice_link(html_parts: list[str]) -> str | None:
+def invoice_link(html_parts: list[str], plain_parts: list[str] = ()) -> str | None:
     """The "view invoice" / "pay" link, for providers that don't put the amount in the email."""
-    links = [(html.unescape(url), html_to_text(label)) for raw in html_parts for url, label in _LINK.findall(raw)]
-    links = [(u, l) for u, l in links if len(u) <= 1000 and not _NOT_INVOICE.search(l) and 'webversion' not in u]
+    links: list[tuple[str, str]] = []
+    for raw in html_parts:
+        parser = _Anchors()
+        try:
+            parser.feed(raw)
+        except Exception:  # malformed HTML should not lose the bill
+            pass
+        links += parser.links
+    for text in plain_parts:  # plain-text bodies: "לצפייה בחשבונית <https://...>"
+        links += [(url, label) for label, url in _TEXT_LINK.findall(text)]
+    links = [(u, l) for u, l in links
+             if re.match(r'https?://', u, re.I) and len(u) <= 1000
+             and not _NOT_INVOICE.search(l) and not _NOT_INVOICE.search(u) and 'webversion' not in u]
     for rank in _LINK_RANKS:
         for url, label in links:
             if rank.search(label):
@@ -120,7 +158,7 @@ def parse(raw_bytes: bytes) -> dict:
         'received_at': received,
         'text': text[:MAX_CHARS],
         'has_pdf': bool(pdfs),
-        'link': invoice_link(raw_htmls),
+        'link': invoice_link(raw_htmls, plain),
     }
 
 

@@ -1,22 +1,34 @@
 import { useEffect, useState, type ReactNode } from 'react'
 
-let showToast: (msg: string) => void = () => {}
-export const toast = (msg: string) => showToast(msg)
+type ToastAction = { label: string; run: () => void }
+let showToast: (msg: string, action?: ToastAction) => void = () => {}
+/** A short message; with an action (e.g. undo) it stays longer and shows a button. */
+export const toast = (msg: string, action?: ToastAction) => showToast(msg, action)
 
 export function ToastHost() {
-  const [msg, setMsg] = useState<string | null>(null)
+  const [state, setState] = useState<{ msg: string; action?: ToastAction } | null>(null)
   useEffect(() => {
     let timer: number | undefined
-    showToast = (m) => {
-      setMsg(m)
+    showToast = (msg, action) => {
+      setState({ msg, action })
       clearTimeout(timer)
-      timer = window.setTimeout(() => setMsg(null), 2600)
+      timer = window.setTimeout(() => setState(null), action ? 6000 : 2600)
     }
   }, [])
-  if (!msg) return null
+  if (!state) return null
   return (
     <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4 pointer-events-none">
-      <div className="rise rounded-xl bg-ink px-4 py-2 text-sm text-page shadow-lg">{msg}</div>
+      <div className="rise pointer-events-auto flex items-center gap-3 rounded-xl bg-ink py-2 ps-4 pe-2 text-sm text-page shadow-lg">
+        <span>{state.msg}</span>
+        {state.action && (
+          <button
+            className="rounded-lg px-3 py-1.5 font-medium text-brand-soft underline-offset-2 active:scale-95"
+            onClick={() => { const run = state.action!.run; setState(null); run() }}
+          >
+            {state.action.label}
+          </button>
+        )}
+      </div>
     </div>
   )
 }

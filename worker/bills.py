@@ -81,6 +81,9 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
             'autopay': info['autopay'],
             'category': info['category'],
         }).execute().data[0]
+    elif provider.get('task_id') != task['id']:
+        client.table('providers').update({'task_id': task['id']}).eq('id', provider['id']).execute()
+        provider = {**provider, 'task_id': task['id']}
 
     bill = client.table('bills').insert({
         'household_id': household_id, 'provider_id': provider['id'], 'task_id': task['id'],
@@ -93,8 +96,13 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
     name = info['provider'] or task['title']
 
     # An old bill (forwarded late, or an archive) is kept as history and never overwrites a newer one.
-    newer = client.table('bills').select('id').eq('task_id', task['id']).neq('id', bill['id']) \
-        .gt('due_date', info['due_date'] or '0001-01-01').limit(1).execute().data
+    newer_q = client.table('bills').select('id').eq('task_id', task['id']).neq('id', bill['id'])
+    newer = (newer_q.gt('due_date', info['due_date']) if info['due_date']
+             else newer_q.gt('received_at', mail['received_at'] or '9999-12-31')).limit(1).execute().data
+    if newer and not info['due_date']:
+        client.table('bills').update({'status': 'paid'}).eq('id', bill['id']).execute()
+        log.info('old bill stored as history')
+        return None
     if info['due_date'] and (newer or (date.fromisoformat(info['due_date']) - today_il()).days < -45):
         client.table('bills').update({'status': 'paid'}).eq('id', bill['id']).execute()
         log.info('old bill stored as history')
@@ -120,6 +128,7 @@ def apply(client, household_id: str, mail: dict, info: dict) -> str | None:
         update['amount'] = info['amount']
     if info['due_date']:
         update['next_due'] = info['due_date']
+        update['anchor_day'] = int(info['due_date'][8:10])  # the real charge/pay day, not the invoice date
     elif info['autopay'] and task.get('interval_months'):
         update['next_due'] = next_month_estimate(task['interval_months'])
     if info['autopay']:
@@ -156,7 +165,11 @@ def run(client, household_id: str) -> int:
             continue  # stays unread, retried next run
         # The repo is public, so Actions logs are too: never log senders, providers or amounts.
         log.info('email classified as %s', info['kind'])
-        note = apply(client, household_id, mail, info) if info['kind'] in ('bill', 'receipt') else None
+        try:
+            note = apply(client, household_id, mail, info) if info['kind'] in ('bill', 'receipt') else None
+        except Exception as e:
+            log.error('could not save an email: %s', type(e).__name__)
+            continue  # stays unread, retried next run; the rest of the inbox still goes through
         imap.store(msg_id, '+FLAGS', '\\Seen')
         if note:
             push.send(client, members, 'הבית שלנו', note, tag=f"bill-{mail['message_id'][-20:]}")
