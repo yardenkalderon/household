@@ -123,7 +123,9 @@ def invoice_link(html_parts: list[str], plain_parts: list[str] = ()) -> str | No
         links += [(url, label) for label, url in _TEXT_LINK.findall(text)]
     links = [(u, l) for u, l in links
              if re.match(r'https?://', u, re.I) and len(u) <= 1000
-             and not _NOT_INVOICE.search(l) and not _NOT_INVOICE.search(u) and 'webversion' not in u]
+             and not _NOT_INVOICE.search(l) and not _NOT_INVOICE.search(u)]
+    # Note: providers' mailing services (e.g. Mei Avivim via webversion.net) host the real invoice
+    # link too, so the URL's host is not a reason to skip it; only the label is.
     for rank in _LINK_RANKS:
         for url, label in links:
             if rank.search(label):

@@ -122,8 +122,8 @@ def test_invoice_link_is_kept_for_link_only_bills():
 
 
 def test_invoice_link_handles_http_unquoted_and_image_buttons():
-    html = ('<a href=http://click.meiavivim.co.il/x?id=7>לצפייה בחשבונית</a>'
-            '<a href="https://webversion.net/abc">לצפייה בגרסת דפדפן</a>')
+    html = ('<a href="https://webversion.net/abc">לצפייה בגרסת דפדפן</a>'
+            '<a href=http://click.meiavivim.co.il/x?id=7>לצפייה בחשבונית</a>')
     assert extract.invoice_link([html]) == 'http://click.meiavivim.co.il/x?id=7'
     img = '<a href="https://pay.example.co.il/q"><img src="b.png" alt="לתשלום מהיר"></a>'
     assert extract.invoice_link([img]) == 'https://pay.example.co.il/q'
@@ -135,3 +135,11 @@ def test_overdue_reminders_repeat_every_three_days():
     t = {'next_due': '2026-10-10', 'remind_days_before': 3, 'autopay': False}
     stages = [reminders.stage_for(t, date(2026, 10, d)) for d in (11, 13, 14, 16, 17)]
     assert stages == ['overdue-0', 'overdue-0', 'overdue-1', 'overdue-1', 'overdue-2']
+
+
+def test_invoice_link_on_mailing_service_host():
+    # Real Mei Avivim email: the invoice button is hosted on webversion.net, next to a browser-version link
+    html = ('<a href="https://webversion.net/aaa">לצפייה בגרסת דפדפן</a>'
+            '<a href="https://webversion.net/bbb"><span>לצפיה בחשבונית</span></a>'
+            '<a href="http://www.mei-avivim.co.il">www.mei-avivim.co.il</a>')
+    assert extract.invoice_link([html]) == 'https://webversion.net/bbb'
