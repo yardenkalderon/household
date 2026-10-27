@@ -6,8 +6,8 @@ import { Login } from './components/Login'
 import { Settings } from './components/Settings'
 import { Shopping } from './components/Shopping'
 import { ToastHost } from './components/ui'
-import { bucketOf } from './lib/dates'
-import { supabase, type Bill, type Member, type ShoppingItem, type Task } from './lib/supabase'
+import { needsAttention } from './lib/model'
+import { supabase, type Bill, type Member, type ShoppingItem, type Task, type TaskEvent } from './lib/supabase'
 
 type Tab = 'home' | 'shop'
 
@@ -34,6 +34,13 @@ function House({ myId }: { myId: string }) {
   const [members, setMembers] = useState<Member[] | null>(null)
   const [tasks, setTasks] = useState<Task[]>([])
   const [bills, setBills] = useState<Bill[]>([])
+  const [events, setEvents] = useState<TaskEvent[]>([])
+  const [workerLate, setWorkerLate] = useState<string | null>(null)
+  // A tapped notification opens the app on its task (?task=ID).
+  const [openTaskId, setOpenTaskId] = useState<number | null>(() => {
+    const id = Number(new URLSearchParams(location.search).get('task'))
+    return Number.isInteger(id) && id > 0 ? id : null
+  })
   const [items, setItems] = useState<ShoppingItem[]>([])
   const [offline, setOffline] = useState(false)
 
@@ -43,15 +50,23 @@ function House({ myId }: { myId: string }) {
   const loadSeq = useRef(0)
   const loadTasks = useCallback(async () => {
     const seq = ++loadSeq.current
-    const [t, b] = await Promise.all([
+    const [t, b, e, w] = await Promise.all([
       supabase.from('tasks').select('*').is('done_at', null),
       supabase.from('bills').select('id,task_id,kind,provider_name,amount,due_date,period,subject,summary,received_at,status,link')
         .order('received_at', { ascending: false }).limit(100),
+      supabase.from('task_events').select('id,task_id,done_on,done_by,amount,source,created_at,prev_amount_estimated')
+        .order('id', { ascending: false }).limit(200),
+      supabase.from('worker_status').select('last_ok_at').maybeSingle(),
     ])
     if (seq !== loadSeq.current) return
     setOffline(Boolean(t.error))
     if (!t.error) setTasks(t.data as Task[])
     if (!b.error) setBills(b.data as Bill[])
+    if (!e.error) setEvents(e.data as TaskEvent[])
+    const lastOk = w.data?.last_ok_at ? new Date(w.data.last_ok_at) : null
+    setWorkerLate(lastOk && Date.now() - lastOk.getTime() > 2 * 3600_000
+      ? lastOk.toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' })
+      : null)
   }, [])
 
   const loadItems = useCallback(async () => {
@@ -77,13 +92,27 @@ function House({ myId }: { myId: string }) {
     const channel = supabase.channel('household-live')
       .on('postgres_changes', { event: '*', schema: 'household', table: 'shopping_items' }, loadItems)
       .on('postgres_changes', { event: '*', schema: 'household', table: 'tasks' }, loadTasks)
+      .on('postgres_changes', { event: '*', schema: 'household', table: 'task_events' }, loadTasks)
       .subscribe()
     const onVisible = () => { if (document.visibilityState === 'visible') { loadTasks(); loadItems() } }
     document.addEventListener('visibilitychange', onVisible)
-    return () => { supabase.removeChannel(channel); document.removeEventListener('visibilitychange', onVisible) }
+    // The service worker tells an already-open app which task a tapped notification is about.
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'open-task' && Number(e.data.taskId) > 0) { setTab('home'); setOpenTaskId(Number(e.data.taskId)) }
+    }
+    navigator.serviceWorker?.addEventListener('message', onMessage)
+    return () => {
+      supabase.removeChannel(channel)
+      document.removeEventListener('visibilitychange', onVisible)
+      navigator.serviceWorker?.removeEventListener('message', onMessage)
+    }
   }, [loadTasks, loadItems])
 
   useEffect(() => { try { localStorage.setItem('tab', tab) } catch { /* private mode */ } }, [tab])
+  useEffect(() => {
+    if (openTaskId && location.search) history.replaceState(null, '', location.pathname)
+    if (openTaskId) setTab('home')
+  }, [openTaskId])
 
   if (members === null) {
     if (!loadError) return null
@@ -104,7 +133,7 @@ function House({ myId }: { myId: string }) {
     )
   }
 
-  const urgent = tasks.filter((t) => !t.autopay && ['late', 'week'].includes(bucketOf(t.next_due))).length
+  const urgent = tasks.filter((t) => needsAttention(t, bills)).length
   const openItems = items.filter((i) => !i.checked).length
 
   return (
@@ -112,7 +141,10 @@ function House({ myId }: { myId: string }) {
       <main className="pt-safe flex-1 pb-28">
         {offline && <p className="mx-4 mb-3 rounded-lg bg-week-soft px-3 py-2 text-sm text-week">אין חיבור כרגע. מוצגים הנתונים האחרונים.</p>}
         {tab === 'home'
-          ? <Home tasks={tasks} bills={bills} members={members} myId={myId} householdId={householdId} reload={loadTasks} onSettings={() => setSettings(true)}
+          ? <Home tasks={tasks} bills={bills} events={events} members={members} myId={myId} householdId={householdId}
+              workerLate={workerLate} openTaskId={openTaskId} setOpenTaskId={setOpenTaskId}
+              onBillsPaid={(id) => setBills((prev) => prev.map((b) => (b.task_id === id && b.status === 'new' ? { ...b, status: 'paid' } : b)))}
+              reload={loadTasks} onSettings={() => setSettings(true)}
               onTaskChanged={(u) => setTasks((prev) => {
                 const rest = prev.filter((t) => t.id !== u.id)
                 return u.done_at ? rest : [...rest, u]  // undo can bring a finished task back

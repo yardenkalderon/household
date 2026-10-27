@@ -30,10 +30,16 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const url: string = event.notification.data?.url ?? self.registration.scope
+  const taskId = new URL(url, self.registration.scope).searchParams.get('task')
   event.waitUntil((async () => {
     const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     const existing = all.find((c) => c.url.startsWith(self.registration.scope))
-    if (existing) { await existing.focus(); return }
+    if (existing) {
+      // The app is already open in the background: focus it and open the task there.
+      await existing.focus()
+      if (taskId) existing.postMessage({ type: 'open-task', taskId })
+      return
+    }
     await self.clients.openWindow(url)
   })())
 })

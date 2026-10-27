@@ -25,6 +25,18 @@ export type Task = {
   remind_days_before: number
   notes: string | null
   done_at: string | null
+  is_bill: boolean
+}
+
+export type TaskEvent = {
+  id: number
+  task_id: number
+  done_on: string
+  done_by: string | null
+  amount: number | null
+  source: 'app' | 'email' | 'worker'
+  created_at: string
+  prev_amount_estimated: boolean | null
 }
 
 export type Member = { household_id: string; user_id: string; display_name: string; email: string }
