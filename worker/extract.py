@@ -91,6 +91,7 @@ class _Anchors(HTMLParser):
 # Best label first; "view this email in a browser" links are never the invoice.
 _LINK_RANKS = [re.compile(p, re.IGNORECASE) for p in (r'חשבונית|invoice', r'תשלום|לשלם|pay', r'חשבון|bill|לצפייה|צפייה')]
 _NOT_INVOICE = re.compile(r'דפדפן|browser|גרסה|גרסת|web ?version|הסרה|unsubscribe|פייסבוק|facebook|instagram|youtube|twitter|linkedin', re.IGNORECASE)
+_SOCIAL_URL = re.compile(r'facebook\.com|instagram\.com|youtube\.com|twitter\.com|linkedin\.com|unsubscribe', re.IGNORECASE)
 _TEXT_LINK = re.compile(r'([^\n<>]{0,60}?)\s*<?(https?://[^\s<>"]+)>?')
 
 
@@ -123,7 +124,7 @@ def invoice_link(html_parts: list[str], plain_parts: list[str] = ()) -> str | No
         links += [(url, label) for label, url in _TEXT_LINK.findall(text)]
     links = [(u, l) for u, l in links
              if re.match(r'https?://', u, re.I) and len(u) <= 1000
-             and not _NOT_INVOICE.search(l) and not _NOT_INVOICE.search(u)]
+             and not _NOT_INVOICE.search(l) and not _SOCIAL_URL.search(u)]
     # Note: providers' mailing services (e.g. Mei Avivim via webversion.net) host the real invoice
     # link too, so the URL's host is not a reason to skip it; only the label is.
     for rank in _LINK_RANKS:
