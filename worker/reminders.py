@@ -39,11 +39,15 @@ def message(task: dict, stage: str, today: date) -> tuple[str, str]:
 
 def advance_autopay(client, today: date) -> None:
     """Standing-order bills pay themselves: once their date passes, move them to the next period."""
-    due = client.table('tasks').select('id,title').eq('autopay', True).eq('kind', 'recurring') \
+    due = client.table('tasks').select('id,title,next_due').eq('autopay', True).eq('kind', 'recurring') \
         .is_('done_at', 'null').lt('next_due', today.isoformat()).execute().data or []
     for task in due:
+        charge = task['next_due']
         for _ in range(24):  # catch up period by period until the next charge is in the future
-            t = client.rpc('complete_task', {'p_task_id': task['id'], 'p_source': 'worker'}).execute().data
+            # Recorded on the charge date (not today), so "paid this month" counts it in the right month.
+            t = client.rpc('complete_task', {'p_task_id': task['id'], 'p_source': 'worker', 'p_done_on': charge,
+                                             'p_expected_due': charge}).execute().data
+            charge = t.get('next_due') if t else None
             if not t or not t.get('next_due') or t['next_due'] >= today.isoformat():
                 break
         log.info('autopay advanced task %s', task['id'])

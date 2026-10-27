@@ -17,6 +17,8 @@ type Props = {
   openTaskId: number | null; setOpenTaskId: (id: number | null) => void
 }
 
+const monthName = () => new Intl.DateTimeFormat('he-IL', { timeZone: 'Asia/Jerusalem', month: 'long' }).format(new Date())
+
 const byDue = (a: Task, b: Task) => (a.next_due ?? '9999').localeCompare(b.next_due ?? '9999')
 
 export function Home(p: Props) {
@@ -155,7 +157,7 @@ export function Home(p: Props) {
         </div>
         {(s.auto > 0 || s.paidThisMonth > 0) && (
           <div className="mt-0.5 text-xs text-ink-2">
-            {[s.auto > 0 && `ייגבה אוטומטית ~${money(s.auto)}`, s.paidThisMonth > 0 && `שולם החודש ${money(s.paidThisMonth)}`]
+            {[s.auto > 0 && `ועוד ~${money(s.auto)} שייגבו אוטומטית`, s.paidThisMonth > 0 && `כבר שולם ב${monthName()}: ${money(s.paidThisMonth)}`]
               .filter(Boolean).join(' · ')}
           </div>
         )}
