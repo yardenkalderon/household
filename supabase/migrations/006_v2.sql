@@ -1,0 +1,5 @@
+-- Applied in Supabase as household_v2_model, household_reliable_schedule (see dashboard history):
+-- tasks.is_bill; mail_log (every processed email, replaces relying on UNSEEN); outbox + notify_partner
+-- trigger ("paid by Roni"); worker_status heartbeat; repeating overdue reminder stages;
+-- complete_task(..., p_expected_due) compare-and-swap; pg_cron 'household-worker' every 15 min calling
+-- household.dispatch_worker() -> GitHub workflow_dispatch (token in Vault: github_dispatch_token).

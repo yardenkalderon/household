@@ -1,17 +1,24 @@
 """Web Push to the members' installed apps."""
 import json
+from datetime import datetime, timezone
 
 from pywebpush import WebPushException, webpush
 
 from common import env, log
 
 
-def send(client, user_ids: list[str], title: str, body: str, tag: str | None = None) -> int:
-    """Sends to every subscribed device of the given users. Returns how many were delivered."""
+APP_URL = 'https://yardenkalderon.github.io/household/'
+
+
+def send(client, user_ids: list[str], title: str, body: str, tag: str | None = None,
+         task_id: int | None = None) -> int:
+    """Sends to every subscribed device of the given users. Returns how many were delivered.
+    Tapping the notification opens the app on that task."""
     if not user_ids:
         return 0
     subs = client.table('push_subscriptions').select('*').in_('user_id', user_ids).execute().data or []
-    payload = json.dumps({'title': title, 'body': body, 'tag': tag}, ensure_ascii=False)
+    url = f'{APP_URL}?task={task_id}' if task_id else APP_URL
+    payload = json.dumps({'title': title, 'body': body, 'tag': tag, 'url': url}, ensure_ascii=False)
     sent = 0
     for sub in subs:
         try:
@@ -42,3 +49,12 @@ def has_devices(client, user_ids: list[str]) -> bool:
         return False
     rows = client.table('push_subscriptions').select('id').in_('user_id', user_ids).limit(1).execute().data
     return bool(rows)
+
+
+def drain_outbox(client) -> int:
+    """Sends notifications queued by the database (e.g. "paid by Roni") and marks them sent."""
+    rows = client.table('outbox').select('*').is_('sent_at', 'null').order('id').limit(50).execute().data or []
+    for row in rows:
+        send(client, row['user_ids'], row['title'], row['body'], tag=row.get('tag'), task_id=row.get('task_id'))
+        client.table('outbox').update({'sent_at': datetime.now(timezone.utc).isoformat()}).eq('id', row['id']).execute()
+    return len(rows)

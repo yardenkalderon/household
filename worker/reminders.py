@@ -10,7 +10,7 @@ def stage_for(task: dict, today: date) -> str | None:
         return None
     days = (date.fromisoformat(task['next_due']) - today).days
     if days < 0:
-        return 'overdue'
+        return f'overdue-{(-days - 1) // 3}'  # a new nudge every 3 days while it stays overdue
     if days == 0:
         return 'due'
     if days <= task['remind_days_before']:
@@ -25,7 +25,7 @@ def message(task: dict, stage: str, today: date) -> tuple[str, str]:
     if task['kind'] == 'consumption':
         title = f"צריך להזמין {task['title']}"
         body = f"לפי ההזמנות הקודמות, זה הזמן (בערך {short_date(due)})"
-    elif stage == 'overdue':
+    elif stage.startswith('overdue'):
         title = f"{task['title']}: באיחור"
         body = f"{amount}היה צריך עד {short_date(due)}"
     elif stage == 'due':
@@ -74,7 +74,7 @@ def run(client, force: bool = False) -> int:
         if not claim.data:
             continue
         title, body = message(task, stage, today)
-        delivered = push.send(client, users, title, body, tag=f"task-{task['id']}")
+        delivered = push.send(client, users, title, body, tag=f"task-{task['id']}", task_id=task['id'])
         log.info('reminder %s/%s -> %d device(s)', task['id'], stage, delivered)
         sent += delivered
     return sent

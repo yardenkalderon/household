@@ -80,7 +80,7 @@ def test_reminder_stages():
     assert reminders.stage_for(t, today) == 'before'
     assert reminders.stage_for({**t, 'next_due': '2026-10-15'}, today) is None
     assert reminders.stage_for({**t, 'next_due': '2026-10-11'}, today) == 'due'
-    assert reminders.stage_for({**t, 'next_due': '2026-10-01'}, today) == 'overdue'
+    assert reminders.stage_for({**t, 'next_due': '2026-10-01'}, today) == 'overdue-3'
     assert reminders.stage_for({**t, 'autopay': True}, today) is None
 
 
@@ -129,3 +129,9 @@ def test_invoice_link_handles_http_unquoted_and_image_buttons():
     assert extract.invoice_link([img]) == 'https://pay.example.co.il/q'
     assert extract.invoice_link([], ['לצפייה בחשבונית: <https://bills.example.co.il/1>']) == 'https://bills.example.co.il/1'
     assert extract.invoice_link(['<a href="https://facebook.com/x">פייסבוק</a>']) is None
+
+
+def test_overdue_reminders_repeat_every_three_days():
+    t = {'next_due': '2026-10-10', 'remind_days_before': 3, 'autopay': False}
+    stages = [reminders.stage_for(t, date(2026, 10, d)) for d in (11, 13, 14, 16, 17)]
+    assert stages == ['overdue-0', 'overdue-0', 'overdue-1', 'overdue-1', 'overdue-2']
