@@ -74,6 +74,13 @@ def _apply(client, household_id: str, mail: dict, info: dict) -> tuple[str | Non
         return None, None
 
     provider = find_provider(client, household_id, mail['sender'], info['provider'], info['category'])
+    # The same bill forwarded again (by the other filter, or by hand) has a new Message-ID: skip it.
+    if provider and provider.get('task_id') and info['amount'] is not None and info['due_date']:
+        same = client.table('bills').select('id').eq('task_id', provider['task_id']) \
+            .eq('amount', info['amount']).eq('due_date', info['due_date']).limit(1).execute().data
+        if same:
+            log.info('duplicate of an existing bill, skipped')
+            return None, None
     if provider and provider.get('autopay'):
         info = {**info, 'autopay': True}  # once marked as standing order, every bill from it is
     is_new_task = not (provider and provider.get('task_id'))
